@@ -189,6 +189,12 @@ def infer_true_movie_ratings(num_observations=-1):
     posteriors = np.zeros((num_movies, M))
     MAP_ratings = np.zeros(num_movies)
 
+    for movie_id in movie_id_list:
+        ratings = movie_data_helper.get_ratings(movie_id)
+        movie_posterior = compute_posterior(prior, likelihood, ratings)
+        posteriors[movie_id, :] = movie_posterior
+        MAP_ratings[movie_id] = np.argmax(movie_posterior)
+    
     #
     # END OF YOUR CODE FOR PART (d)
     # -------------------------------------------------------------------------
@@ -283,7 +289,10 @@ def main():
     print("Expected answer:")
     print(np.array([[0.91986917, 0.08013083]]))
 
-    compute_movie_rating_likelihood(M=2)
+    # compute_movie_rating_likelihood(M=2)
+    
+    # movie ratings
+    movie_posteriors, movie_MAP_ratings = infer_true_movie_ratings()
     
     print("---")
     print("Entropy of fair coin flip")
