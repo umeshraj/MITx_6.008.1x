@@ -123,7 +123,14 @@ def compute_movie_rating_likelihood(M):
     # Remember to normalize the likelihood, so that each column is a
     # probability distribution.
     #
-
+    for row in range(M):
+        for col in range(M):
+            if row == col:
+                val = 2
+            else:
+                val = 1/np.abs(row-col)
+            likelihood[row, col] = val
+    likelihood = likelihood/likelihood.sum(axis=0)
     #
     # END OF YOUR CODE FOR PART (c)
     # -------------------------------------------------------------------------
@@ -276,6 +283,8 @@ def main():
     print("Expected answer:")
     print(np.array([[0.91986917, 0.08013083]]))
 
+    compute_movie_rating_likelihood(M=2)
+    
     print("---")
     print("Entropy of fair coin flip")
     distribution = np.array([0.5, 0.5])
