@@ -3,3 +3,5 @@
 *.ipynb*
 __MACOSX/
 data/
+*.pdf
+*.txt
