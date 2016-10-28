@@ -191,7 +191,10 @@ def infer_true_movie_ratings(num_observations=-1):
 
     for movie_id in movie_id_list:
         ratings = movie_data_helper.get_ratings(movie_id)
-        ratings = ratings[:num_observations]
+        if num_observations== -1:
+            ratings = ratings[:None]
+        else:
+            ratings = ratings[:num_observations]
         movie_posterior = compute_posterior(prior, likelihood, ratings)
         posteriors[movie_id, :] = movie_posterior
         MAP_ratings[movie_id] = np.argmax(movie_posterior)
@@ -410,12 +413,12 @@ def main():
     # easy for us graders to run your code. You may want to define multiple
     # functions for each of the parts of this problem, and call them here.
 
-    # compute_movie_rating_likelihood(M=2)
+    compute_movie_rating_likelihood(M=2)
     
     # movie ratings
     # movie_posteriors, movie_MAP_ratings = infer_true_movie_ratings()
     #rateEnt= compute_true_movie_rating_posterior_entropies(num_observations=1)
-    compute_true_movie_rating_posterior_entropies_fast()
+    #compute_true_movie_rating_posterior_entropies_fast()
     pass
     #
     # END OF YOUR CODE FOR TESTING
