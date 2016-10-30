@@ -34,13 +34,19 @@ def careful_log(x):
     else:
         return np.log(x)
 
+def buildPhi(y):
+    phi_X = robot.Distribution()
+    for x in all_possible_hidden_states:
+        yPoss = observation_model(x)
+        phi_X[x] = yPoss[y]
+    return phi_X
 
-def forward(alphaIn, y):
+def forward(alphaIn, phi_x, y):
     """compute the next forward message"""
     alphaPhi_X = robot.Distribution()
     for x, alphaX in alphaIn.items():
-        yPoss = observation_model(x)
-        tmpProd = yPoss[y] * alphaX
+        yProb = phi_x[x]
+        tmpProd = yProb * alphaX
         if tmpProd > 0:
             alphaPhi_X[x] = tmpProd
     
@@ -51,9 +57,48 @@ def forward(alphaIn, y):
         # multiply and add x2Poss to o/p
         for x2Key, x2pVal in x2Poss.items():
             alphaOut[x2Key] += x2pVal*alphaPhi
-        print(alphaOut)
+        #print(alphaOut)
     return alphaOut         
-        
+
+def rev_transition_model(curState):
+    # given a hidden state, return the Distribution for the prev hidden state
+    revModel = robot.Distribution()
+    for x in all_possible_hidden_states:
+        tmp = transition_model(x)
+        revModel[x] = tmp[curState]
+    #revModel.renormalize()
+    return revModel
+
+    
+def backward(alphaIn, phi_x, y):
+    """compute the next forward message"""
+    alphaPhi_X = robot.Distribution()
+    for x, alphaX in alphaIn.items():
+        yProb = phi_x[x]
+        tmpProd = yProb * alphaX
+        if tmpProd > 0:
+            alphaPhi_X[x] = tmpProd
+    
+    # compute alpha out
+    alphaOut = robot.Distribution()
+    for x, alphaPhi in alphaPhi_X.items():
+        x2Poss = rev_transition_model(x)
+        # multiply and add x2Poss to o/p
+        for x2Key, x2pVal in x2Poss.items():
+            alphaOut[x2Key] += x2pVal*alphaPhi
+        #print(alphaOut)
+    return alphaOut    
+    
+def mkMarginals(fwd, back, phi):
+    marg = robot.Distribution()
+    for x in all_possible_hidden_states:
+        marg[x] = phi[x] * fwd[x] * back[x]
+    marg.renormalize()
+    return marg
+    
+def printProb(inDict):
+    print(sorted(inDict.items(), key=lambda x: x[1], 
+                 reverse=True)[:10])
 # -----------------------------------------------------------------------------
 # Functions for you to implement
 #
@@ -81,20 +126,45 @@ def forward_backward(observations):
     num_time_steps = len(observations)
     forward_messages = [None] * num_time_steps
     forward_messages[0] = prior_distribution
+
+    # pre-build phi_x for all nodes
+    phi_XList = [None] * num_time_steps
+    for idx, y in enumerate(observations):
+        phi_XList[idx] = buildPhi(y)
+
     # TODO: Compute the forward messages
-    alphaIn = forward_messages[0]
-    
-    # build phi_x
     for idx, y in enumerate(observations[0:-1]):
-        nxtFwd = forward(alphaIn, y)
+        alphaIn = forward_messages[idx]
+        nxtFwd = forward(alphaIn, phi_XList[idx], y)
         forward_messages[idx+1] = nxtFwd
 
     backward_messages = [None] * num_time_steps
     # TODO: Compute the backward messages
-    
-    marginals = [None] * num_time_steps # remove this
-    # TODO: Compute the marginals 
+    backMsg = robot.Distribution()
+    for x in all_possible_hidden_states:
+        backMsg[x] = 1
+    backward_messages[-1] = backMsg
+    for idx, y in enumerate(observations[-1:0:-1]):
+        nodeIdx = num_time_steps-idx-1
+        betaIn = backward_messages[nodeIdx]
+        nxtBeta = backward(betaIn, phi_XList[nodeIdx], y)
+        backward_messages[nodeIdx-1] = nxtBeta
+ 
+#    testIdx = 2
+#    fwdTest = forward_messages[testIdx]
+#    fwdTest.renormalize()
+#    printProb(fwdTest)
+#    backTest = backward_messages[testIdx]
+#    backTest.renormalize()
+#    printProb(backTest)
 
+    #marginals = [None] * num_time_steps # remove this
+    marginals = []
+    # TODO: Compute the marginals 
+    fbpZip = zip(forward_messages, backward_messages, phi_XList)
+    for fwd, back, phi in fbpZip:        
+        marg = mkMarginals(fwd, back, phi)
+        marginals.append(marg)
     return marginals
 
 
@@ -161,7 +231,8 @@ def generate_data(num_time_steps, make_some_observations_missing=False,
     np.random.seed(random_seed)
 
     # draw initial state and emit an observation
-    initial_state = prior_distribution.sample()
+    # initial_state = prior_distribution.sample()
+    initial_state = (0, 0, 'stay')
     initial_observation = observation_model(initial_state).sample()
 
     hidden_states.append(initial_state)
@@ -194,7 +265,7 @@ def generate_data(num_time_steps, make_some_observations_missing=False,
 def main():
     # flags
     make_some_observations_missing = False
-    use_graphics = True
+    use_graphics = False
     need_to_generate_data = True
 
     # parse command line arguments
@@ -211,11 +282,11 @@ def main():
 
     # if no data is loaded, then generate new data
     if need_to_generate_data:
-        num_time_steps = 100
-        #num_time_steps = 2
+        num_time_steps = 3
         hidden_states, observations = \
             generate_data(num_time_steps,
-                          make_some_observations_missing)
+                          make_some_observations_missing,
+                          random_seed=0)
 
     print('Running forward-backward...')
     marginals = forward_backward(observations)
@@ -234,68 +305,68 @@ def main():
     print('Running Viterbi...')
     estimated_states = Viterbi(observations)
     print("\n")
-
-    print("Last 10 hidden states in the MAP estimate:")
-    for time_step in range(num_time_steps - 10 - 1, num_time_steps):
-        if estimated_states[time_step] is None:
-            print('Missing')
-        else:
-            print(estimated_states[time_step])
-    print("\n")
-
-    print('Finding second-best MAP estimate...')
-    estimated_states2 = second_best(observations)
-    print("\n")
-
-    print("Last 10 hidden states in the second-best MAP estimate:")
-    for time_step in range(num_time_steps - 10 - 1, num_time_steps):
-        if estimated_states2[time_step] is None:
-            print('Missing')
-        else:
-            print(estimated_states2[time_step])
-    print("\n")
-
-    difference = 0
-    difference_time_steps = []
-    for time_step in range(num_time_steps):
-        if estimated_states[time_step] != hidden_states[time_step]:
-            difference += 1
-            difference_time_steps.append(time_step)
-    print("Number of differences between MAP estimate and true hidden " +
-          "states:", difference)
-    if difference > 0:
-        print("Differences are at the following time steps: " +
-              ", ".join(["%d" % time_step
-                         for time_step in difference_time_steps]))
-    print("\n")
-
-    difference = 0
-    difference_time_steps = []
-    for time_step in range(num_time_steps):
-        if estimated_states2[time_step] != hidden_states[time_step]:
-            difference += 1
-            difference_time_steps.append(time_step)
-    print("Number of differences between second-best MAP estimate and " +
-          "true hidden states:", difference)
-    if difference > 0:
-        print("Differences are at the following time steps: " +
-              ", ".join(["%d" % time_step
-                         for time_step in difference_time_steps]))
-    print("\n")
-
-    difference = 0
-    difference_time_steps = []
-    for time_step in range(num_time_steps):
-        if estimated_states[time_step] != estimated_states2[time_step]:
-            difference += 1
-            difference_time_steps.append(time_step)
-    print("Number of differences between MAP and second-best MAP " +
-          "estimates:", difference)
-    if difference > 0:
-        print("Differences are at the following time steps: " +
-              ", ".join(["%d" % time_step
-                         for time_step in difference_time_steps]))
-    print("\n")
+#
+#    print("Last 10 hidden states in the MAP estimate:")
+#    for time_step in range(num_time_steps - 10 - 1, num_time_steps):
+#        if estimated_states[time_step] is None:
+#            print('Missing')
+#        else:
+#            print(estimated_states[time_step])
+#    print("\n")
+#
+#    print('Finding second-best MAP estimate...')
+#    estimated_states2 = second_best(observations)
+#    print("\n")
+#
+#    print("Last 10 hidden states in the second-best MAP estimate:")
+#    for time_step in range(num_time_steps - 10 - 1, num_time_steps):
+#        if estimated_states2[time_step] is None:
+#            print('Missing')
+#        else:
+#            print(estimated_states2[time_step])
+#    print("\n")
+#
+#    difference = 0
+#    difference_time_steps = []
+#    for time_step in range(num_time_steps):
+#        if estimated_states[time_step] != hidden_states[time_step]:
+#            difference += 1
+#            difference_time_steps.append(time_step)
+#    print("Number of differences between MAP estimate and true hidden " +
+#          "states:", difference)
+#    if difference > 0:
+#        print("Differences are at the following time steps: " +
+#              ", ".join(["%d" % time_step
+#                         for time_step in difference_time_steps]))
+#    print("\n")
+#
+#    difference = 0
+#    difference_time_steps = []
+#    for time_step in range(num_time_steps):
+#        if estimated_states2[time_step] != hidden_states[time_step]:
+#            difference += 1
+#            difference_time_steps.append(time_step)
+#    print("Number of differences between second-best MAP estimate and " +
+#          "true hidden states:", difference)
+#    if difference > 0:
+#        print("Differences are at the following time steps: " +
+#              ", ".join(["%d" % time_step
+#                         for time_step in difference_time_steps]))
+#    print("\n")
+#
+#    difference = 0
+#    difference_time_steps = []
+#    for time_step in range(num_time_steps):
+#        if estimated_states[time_step] != estimated_states2[time_step]:
+#            difference += 1
+#            difference_time_steps.append(time_step)
+#    print("Number of differences between MAP and second-best MAP " +
+#          "estimates:", difference)
+#    if difference > 0:
+#        print("Differences are at the following time steps: " +
+#              ", ".join(["%d" % time_step
+#                         for time_step in difference_time_steps]))
+#    print("\n")
 
     # display
     if use_graphics:
