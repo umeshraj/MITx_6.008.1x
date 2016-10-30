@@ -221,6 +221,7 @@ def myDictMin(inDict):
     
 def ViterbiWkHorse(neglogphi, prevMsgHat):
     mHat = Distribution()
+    tBack = {}
     for x2Key in all_possible_hidden_states:
         tmp = Distribution()
         for x1Key, x1Val in neglogphi.items():
@@ -229,8 +230,21 @@ def ViterbiWkHorse(neglogphi, prevMsgHat):
             tmp[x1Key] = x1Val + neglogx2Poss[x2Key] + prevMsgHat[x1Key]
         minVal, minKey = myDictMin(tmp)
         mHat[x2Key] = minVal
-    return mHat
+        tBack[x2Key] = minKey
+    return mHat, tBack
 
+def mostLikely(neglogphi, prevMsgHat):
+    mHat = Distribution()
+    tBack = {}
+    tmp = Distribution()
+    for x1Key, x1Val in neglogphi.items():
+        tmp[x1Key] = x1Val + prevMsgHat[x1Key]
+    minVal, minKey = myDictMin(tmp)
+    mHat = minVal
+    tBack = minKey
+    return mHat, tBack
+
+    
 def Viterbi(observations):
     """
     Input
@@ -259,20 +273,33 @@ def Viterbi(observations):
     # change phi for first observation
     phi_XList[0]['F'] *= prior_distribution['F']
     phi_XList[0]['B'] *= prior_distribution['B']
-
-    #mHatInit = 
-    #for idx, y in enumerate(observations)
-    #y = observations[0]
-    neglogphi = myneglog(phi_XList[0])
+    # compute neg log of ph
+    neglogphiList = [myneglog(x) for x in phi_XList]
+    
+    mHatList = [None] * num_time_steps
+    tBackList = [None] * num_time_steps
     mHatZero = Distribution()
     for x in all_possible_hidden_states:
         mHatZero[x] = 0
-    mHat12 = ViterbiWkHorse(neglogphi, mHatZero)
-    
-    neglogphi = myneglog(phi_XList[1])
-    mHat23 = ViterbiWkHorse(neglogphi, mHat12)
+    mHatList[0] = mHatZero
 
-    print(mHat)
+    for idx, y in enumerate(observations[:-1]):
+        mHatPrev = mHatList[idx]
+        mHat, tBack = ViterbiWkHorse(neglogphiList[idx], mHatPrev)
+        mHatList[idx+1] = mHat
+        tBackList[idx+1] = tBack
+        pass
+
+    # return the estimated hidden states
+    finhat, finState = mostLikely(neglogphiList[-1], mHatList[-1])
+    finStates = [None] * num_time_steps
+    finStates[-1] = finState
+    for idx in range(num_time_steps-1, 0, -1):
+        curState = finStates[idx]
+        tBack = tBackList[idx]
+        prevState = tBack[curState]
+        finStates[idx-1] = prevState
+    estimated_hidden_states = finStates
     return estimated_hidden_states    
     
 all_possible_hidden_states = get_all_hidden_states()
