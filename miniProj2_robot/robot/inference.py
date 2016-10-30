@@ -37,8 +37,11 @@ def careful_log(x):
 def buildPhi(y):
     phi_X = robot.Distribution()
     for x in all_possible_hidden_states:
-        yPoss = observation_model(x)
-        phi_X[x] = yPoss[y]
+        if y is None:
+            phi_X[x] = 1
+        else:
+            yPoss = observation_model(x)
+            phi_X[x] = yPoss[y]                
     return phi_X
 
 def forward(alphaIn, phi_x, y):
@@ -98,7 +101,7 @@ def mkMarginals(fwd, back, phi):
     
 def printProb(inDict):
     print(sorted(inDict.items(), key=lambda x: x[1], 
-                 reverse=True)[:10])
+                 reverse=True)[:2])
 # -----------------------------------------------------------------------------
 # Functions for you to implement
 #
@@ -122,7 +125,6 @@ def forward_backward(observations):
     # -------------------------------------------------------------------------
     # YOUR CODE GOES HERE
     #
-
     num_time_steps = len(observations)
     forward_messages = [None] * num_time_steps
     forward_messages[0] = prior_distribution
@@ -165,6 +167,7 @@ def forward_backward(observations):
     for fwd, back, phi in fbpZip:        
         marg = mkMarginals(fwd, back, phi)
         marginals.append(marg)
+        # printProb(marg)
     return marginals
 
 
@@ -292,7 +295,7 @@ def main():
     marginals = forward_backward(observations)
     print("\n")
 
-    timestep = 2
+    timestep = 99
     print("Most likely parts of marginal at time %d:" % (timestep))
     if marginals[timestep] is not None:
         print(sorted(marginals[timestep].items(),
