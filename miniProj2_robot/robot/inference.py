@@ -60,6 +60,35 @@ def forward(alphaIn, phi_x, y):
         #print(alphaOut)
     return alphaOut         
 
+def rev_transition_model(curState):
+    # given a hidden state, return the Distribution for the prev hidden state
+    revModel = robot.Distribution()
+    for x in all_possible_hidden_states:
+        tmp = transition_model(x)
+        revModel[x] = tmp[curState]
+    #revModel.renormalize()
+    return revModel
+
+    
+def backward(alphaIn, phi_x, y):
+    """compute the next forward message"""
+    alphaPhi_X = robot.Distribution()
+    for x, alphaX in alphaIn.items():
+        yProb = phi_x[x]
+        tmpProd = yProb * alphaX
+        if tmpProd > 0:
+            alphaPhi_X[x] = tmpProd
+    
+    # compute alpha out
+    alphaOut = robot.Distribution()
+    for x, alphaPhi in alphaPhi_X.items():
+        x2Poss = rev_transition_model(x)
+        # multiply and add x2Poss to o/p
+        for x2Key, x2pVal in x2Poss.items():
+            alphaOut[x2Key] += x2pVal*alphaPhi
+        #print(alphaOut)
+    return alphaOut    
+    
 def mkMarginals(fwd, back, phi):
     marg = robot.Distribution()
     for x in all_possible_hidden_states:
@@ -118,9 +147,17 @@ def forward_backward(observations):
     for idx, y in enumerate(observations[-1:0:-1]):
         nodeIdx = num_time_steps-idx-1
         betaIn = backward_messages[nodeIdx]
-        nxtBeta = forward(betaIn, phi_XList[nodeIdx], y)
+        nxtBeta = backward(betaIn, phi_XList[nodeIdx], y)
         backward_messages[nodeIdx-1] = nxtBeta
  
+#    testIdx = 2
+#    fwdTest = forward_messages[testIdx]
+#    fwdTest.renormalize()
+#    printProb(fwdTest)
+#    backTest = backward_messages[testIdx]
+#    backTest.renormalize()
+#    printProb(backTest)
+
     #marginals = [None] * num_time_steps # remove this
     marginals = []
     # TODO: Compute the marginals 
