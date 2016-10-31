@@ -271,8 +271,11 @@ def Viterbi(observations):
     for idx, y in enumerate(observations):
         phi_XList[idx] = buildPhi(y)
     # change phi for first observation
-    phi_XList[0]['F'] *= prior_distribution['F']
-    phi_XList[0]['B'] *= prior_distribution['B']
+#    phi_XList[0]['F'] *= prior_distribution['F']
+#    phi_XList[0]['B'] *= prior_distribution['B']
+    for key, val in phi_XList[0].items():
+        phi_XList[0][key] *= prior_distribution[key]
+
     # compute neg log of ph
     neglogphiList = [myneglog(x) for x in phi_XList]
     
@@ -300,6 +303,7 @@ def Viterbi(observations):
         prevState = tBack[curState]
         finStates[idx-1] = prevState
     estimated_hidden_states = finStates
+    print(finStates)
     return estimated_hidden_states    
     
 all_possible_hidden_states = get_all_hidden_states()
