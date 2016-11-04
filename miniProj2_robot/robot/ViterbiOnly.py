@@ -99,53 +99,49 @@ observationsStr = 'GGCACTGAA'.lower()
 observations = [x for x in observationsStr]
 
 # %% computing m12
-#obs1 = get_obs((2, 0))
-obs1 = get_obs(observations[0])
-prior1 = robot.Distribution()
-for x in obs1.keys():
-    prior1[x] = prior_distribution[x]
-phi1 = robot.Distribution()
-for x in obs1.keys():
-    tmpProd= obs1[x] * prior1[x]
-    if tmpProd > 0:
-        phi1[x] = tmpProd
 
-# compute message 1 to 2
-m12 = robot.Distribution()
-tBack12 = {}
-for x2_state in all_possible_hidden_states:
-    x1_collect = {}
-    for x1_state, x1_value in phi1.items():
-        x2_x1_trans = transition_model(x1_state)
-        trans_value = x2_x1_trans[x2_state]
-        prod = neglog(x1_value) + neglog(trans_value)
-        if prod < np.inf:
-            x1_collect[x1_state] = prod
-    minVal, minKey = myDictMin(x1_collect)
-    if minVal < np.inf:
-        m12[x2_state] = minVal
-        tBack12[x2_state] = minKey
+phi_list = []
+for y in observations:
+    phi = get_obs(y)
+    phi_list.append(myneglog(phi))
+
+prior1 = robot.Distribution()
+for x in phi_list[0].keys():
+    tmpProd= prior_distribution[x]
+    if tmpProd > 0:
+        prior1[x] = tmpProd
+prior1 = myneglog(prior1)
 
 
 # %% compute message 2 to 3
 
-msgList = [m12]
-tBackList = [tBack12]
+tmpFirst = robot.Distribution()
+for key in phi_list[0].keys():
+    tmpFirst[key] = phi_list[0][key] + prior1[key]
 
-for idx, y in enumerate(observations[1:-1], start=1):
+
+msgList = [tmpFirst]
+#tBackList = [tBack12]
+minVal, minKey = myDictMin(tmpFirst)
+tBackList = [{'H': 'H', 'L': 'L'}]
+
+startIdx = 1
+for idx, y in enumerate(observations[startIdx:], start=startIdx):
     prevMsg = msgList[idx-1]
-    phi2 = get_obs(y)
+    phi2 = phi_list[idx]
     m23 = robot.Distribution()
     tBack23 = {}
     for x2_state in all_possible_hidden_states:
-#        if (idx== 3) and x2_state == (4, 0, 'right'):
-#            print('debug')
         x1_collect = {}
-        for x1_state, x1_value in phi2.items():
+        x1_value = phi2[x2_state]
+        for x1_state, _ in phi2.items():
             x2_x1_trans = transition_model(x1_state)
             trans_value = x2_x1_trans[x2_state]
+            trans_value = neglog(trans_value)
             prev = prevMsg[x1_state]
-            prod = neglog(x1_value) + neglog(trans_value) + prev
+            prod = x1_value + trans_value + prev
+#            print("phi:{0}, prev:{1}, trans:{2}".format(x1_value,
+#                  prev, trans_value))
             if prod < np.inf:
                 x1_collect[x1_state] = prod
 
@@ -159,7 +155,7 @@ for idx, y in enumerate(observations[1:-1], start=1):
 
 # %% just fake the tracke back for now
 num_time_steps = len(observations)
-fin_phi_neglog = myneglog(get_obs(observations[-1]))
+fin_phi_neglog = phi_list[-1]
 finStates = [None] * num_time_steps
 finhat, finState = mostLikely(fin_phi_neglog, msgList[-1])
 finStates[-1] = finState
