@@ -123,7 +123,7 @@ for key in phi_list[0].keys():
 msgList = [tmpFirst]
 #tBackList = [tBack12]
 minVal, minKey = myDictMin(tmpFirst)
-tBackList = [{'H': 'H', 'L': 'L'}]
+tBackList = [{x: x for x in all_possible_hidden_states}]
 
 startIdx = 1
 for idx, y in enumerate(observations[startIdx:], start=startIdx):
@@ -160,9 +160,9 @@ finStates = [None] * num_time_steps
 finhat, finState = mostLikely(fin_phi_neglog, msgList[-1])
 finStates[-1] = finState
 #finStates[-1] = (6, 2, "down")
-for idx in range(num_time_steps-1, 0, -1):
+for idx in range(num_time_steps-1, -1, -1):
     curState = finStates[idx]
-    tBack = tBackList[idx-1]
+    tBack = tBackList[idx]
     prevState = tBack[curState]
     finStates[idx-1] = prevState
     print("{0}: {1}".format(idx, curState))
