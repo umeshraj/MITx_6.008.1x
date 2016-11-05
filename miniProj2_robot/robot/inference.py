@@ -41,7 +41,7 @@ def buildPhi(y):
             phi_X[x] = 1
         else:
             yPoss = observation_model(x)
-            phi_X[x] = yPoss[y]                
+            phi_X[x] = yPoss[y]
     return phi_X
 
 def forward(alphaIn, phi_x, y):
@@ -52,7 +52,7 @@ def forward(alphaIn, phi_x, y):
         tmpProd = yProb * alphaX
         if tmpProd > 0:
             alphaPhi_X[x] = tmpProd
-    
+
     # compute alpha out
     alphaOut = robot.Distribution()
     for x, alphaPhi in alphaPhi_X.items():
@@ -61,7 +61,7 @@ def forward(alphaIn, phi_x, y):
         for x2Key, x2pVal in x2Poss.items():
             alphaOut[x2Key] += x2pVal*alphaPhi
         #print(alphaOut)
-    return alphaOut         
+    return alphaOut
 
 def rev_transition_model(curState):
     # given a hidden state, return the Distribution for the prev hidden state
@@ -72,7 +72,7 @@ def rev_transition_model(curState):
     #revModel.renormalize()
     return revModel
 
-    
+
 def backward(alphaIn, phi_x, y):
     """compute the next forward message"""
     alphaPhi_X = robot.Distribution()
@@ -81,7 +81,7 @@ def backward(alphaIn, phi_x, y):
         tmpProd = yProb * alphaX
         if tmpProd > 0:
             alphaPhi_X[x] = tmpProd
-    
+
     # compute alpha out
     alphaOut = robot.Distribution()
     for x, alphaPhi in alphaPhi_X.items():
@@ -90,17 +90,17 @@ def backward(alphaIn, phi_x, y):
         for x2Key, x2pVal in x2Poss.items():
             alphaOut[x2Key] += x2pVal*alphaPhi
         #print(alphaOut)
-    return alphaOut    
-    
+    return alphaOut
+
 def mkMarginals(fwd, back, phi):
     marg = robot.Distribution()
     for x in all_possible_hidden_states:
         marg[x] = phi[x] * fwd[x] * back[x]
     marg.renormalize()
     return marg
-    
+
 def printProb(inDict):
-    print(sorted(inDict.items(), key=lambda x: x[1], 
+    print(sorted(inDict.items(), key=lambda x: x[1],
                  reverse=True)[:2])
 # -----------------------------------------------------------------------------
 # Functions for you to implement
@@ -151,7 +151,7 @@ def forward_backward(observations):
         betaIn = backward_messages[nodeIdx]
         nxtBeta = backward(betaIn, phi_XList[nodeIdx], y)
         backward_messages[nodeIdx-1] = nxtBeta
- 
+
 #    testIdx = 2
 #    fwdTest = forward_messages[testIdx]
 #    fwdTest.renormalize()
@@ -162,13 +162,60 @@ def forward_backward(observations):
 
     #marginals = [None] * num_time_steps # remove this
     marginals = []
-    # TODO: Compute the marginals 
+    # TODO: Compute the marginals
     fbpZip = zip(forward_messages, backward_messages, phi_XList)
-    for fwd, back, phi in fbpZip:        
+    for fwd, back, phi in fbpZip:
         marg = mkMarginals(fwd, back, phi)
         marginals.append(marg)
         # printProb(marg)
     return marginals
+
+def neglog(x):
+    return -1 * careful_log(x)
+
+def myDictMin(inDict):
+    minVal = np.inf
+    minKey = None
+    for key, val in inDict.items():
+        if val <= minVal:
+            minVal = val
+            minKey = key
+    return minVal, minKey
+
+def myneglog(pDist):
+    pDist = pDist.copy()
+    pOut = robot.Distribution()
+    for key, val in pDist.items():
+        pOut[key] = -1*careful_log(val)
+    return pOut
+
+
+def mostLikely(phiLast, msgHat):
+    finNode = robot.Distribution()
+    for key in phiLast.keys():
+        val2 = msgHat[key]
+        if val2 == 0:
+            val2 = np.inf
+        finNode[key] = neglog(phiLast[key]) + val2
+    minVal, minKey = myDictMin(finNode)
+    mHat = minVal
+    tBack = minKey
+    return mHat, tBack
+
+def get_all_poss_x2(x1_state_list):
+    all_x2 = []
+    for x1_state in x1_state_list:
+        x2_x1_trans = transition_model(x1_state)
+        for x2 in x2_x1_trans:
+            all_x2.append(x2)
+    all_x2 = set(all_x2)
+    return all_x2
+
+def ur_transition_model():
+    ur_trans_dict = {}
+    for x1 in all_possible_hidden_states:
+        ur_trans_dict[x1] = transition_model(x1)
+    return ur_trans_dict
 
 
 def Viterbi(observations):
@@ -188,10 +235,101 @@ def Viterbi(observations):
     # YOUR CODE GOES HERE
     #
 
-
     num_time_steps = len(observations)
-    estimated_hidden_states = [None] * num_time_steps # remove this
+    #estimated_hidden_states = [None] * num_time_steps # remove this
 
+    # pre-compute for speed
+    ur_trans_dict = ur_transition_model()
+
+    # %% computing m12
+    phi1 = robot.Distribution()
+    obs1 = buildPhi(observations[0])
+    for x in obs1.keys():
+        tmpProd= obs1[x] * prior_distribution[x]
+        if tmpProd > 0:
+            phi1[x] = tmpProd
+
+    # compute message 1 to 2
+    m12 = robot.Distribution()
+    tBack12 = {}
+    phi_use = myneglog(phi1)
+    all_x1 = list(phi_use.keys())
+    #for x2_state in all_possible_hidden_states:
+    all_poss_x2 = get_all_poss_x2(all_x1)
+    for x2_state in all_poss_x2:
+        x1_collect = {}
+        for x1_state, x1_value in phi_use.items():
+            #x2_x1_trans = transition_model(x1_state)
+            x2_x1_trans = ur_trans_dict[x1_state]
+            trans_value = x2_x1_trans[x2_state]
+            prod = x1_value + neglog(trans_value)
+            #prod = x1_value + trans_value
+            if prod < np.inf:
+                x1_collect[x1_state] = prod
+        if bool(x1_collect):
+            minVal, minKey = myDictMin(x1_collect)
+            if minVal < np.inf:
+                m12[x2_state] = minVal
+                tBack12[x2_state] = minKey
+
+    # %% compute message 2 to 3
+
+    #msgList = [m12]
+    prevMsg = m12
+    tBackList = [tBack12]
+    startIdx = 2
+    for idx in range(startIdx, num_time_steps):
+        y = observations[idx-1]
+        phi2 = myneglog(buildPhi(y))
+        #prevMsg = msgList[idx-2]
+        m23 = robot.Distribution()
+        tBack23 = {}
+        all_x1 = list(phi2.keys())
+        all_poss_x2 = get_all_poss_x2(all_x1)
+        #for x2_state in all_possible_hidden_states:
+        for x2_state in all_poss_x2:
+            x1_collect = {}
+            for x1_state, x1_value in phi2.items():
+                #x2_x1_trans = transition_model(x1_state)
+                x2_x1_trans = ur_trans_dict[x1_state]
+                trans_value = x2_x1_trans[x2_state]
+                prev = prevMsg[x1_state]
+                if prev == 0:
+                    prev = np.inf
+                prod = x1_value + neglog(trans_value) + prev
+                #prod = x1_value + trans_value + prev
+                if prod < np.inf:
+                    x1_collect[x1_state] = prod
+
+            if bool(x1_collect):
+                minVal, minKey = myDictMin(x1_collect)
+                if minVal < np.inf:
+                    m23[x2_state] = minVal
+                    tBack23[x2_state] = minKey
+        #msgList.append(m23)
+        prevMsg = m23
+        tBackList.append(tBack23)
+
+    # %% just fake the tracke back for now
+    finStates = [None] * num_time_steps
+
+    phiLast = buildPhi(observations[-1])
+    #finhat, finState = mostLikely(phiLast, msgList[-1])
+    finhat, finState = mostLikely(phiLast, prevMsg)
+    finStates[-1] = finState
+    #finStates[-1] = (6, 2, "down")
+    curState = finStates[-1]
+    for idx in range(num_time_steps-1, 0, -1):
+        curState = finStates[idx]
+        tBack = tBackList[idx-1]
+        prevState = tBack[curState]
+        finStates[idx-1] = prevState
+        # print("{0}: {1}".format(idx, curState))
+    # first state update
+    firstState= tBack[curState]
+    finStates[0] = firstState
+
+    estimated_hidden_states = finStates
     return estimated_hidden_states
 
 
@@ -285,30 +423,33 @@ def main():
 
     # if no data is loaded, then generate new data
     if need_to_generate_data:
-        num_time_steps = 3
+        num_time_steps = 100
         hidden_states, observations = \
             generate_data(num_time_steps,
                           make_some_observations_missing,
                           random_seed=0)
 
-    print('Running forward-backward...')
-    marginals = forward_backward(observations)
-    print("\n")
-
-    timestep = 99
-    print("Most likely parts of marginal at time %d:" % (timestep))
-    if marginals[timestep] is not None:
-        print(sorted(marginals[timestep].items(),
-                     key=lambda x: x[1],
-                     reverse=True)[:10])
-    else:
-        print('*No marginal computed*')
-    print("\n")
+#    print('Running forward-backward...')
+#    marginals = forward_backward(observations)
+#    print("\n")
+#
+#    timestep = 2
+#    print("Most likely parts of marginal at time %d:" % (timestep))
+#    if marginals[timestep] is not None:
+#        print(sorted(marginals[timestep].items(),
+#                     key=lambda x: x[1],
+#                     reverse=True)[:10])
+#    else:
+#        print('*No marginal computed*')
+#    print("\n")
 
     print('Running Viterbi...')
+    observations = [(2, 0), (2, 0), (3, 0), (4, 0), (4, 0), (6, 0), (6, 1), (5, 0), (6, 0), (6, 2)]
+    #observations = [(1, 6), (4, 6), (4, 7), None, (5, 6), (6, 5), (6, 6), None, (5, 5), (4, 4)]
     estimated_states = Viterbi(observations)
+    print(estimated_states)
     print("\n")
-#
+
 #    print("Last 10 hidden states in the MAP estimate:")
 #    for time_step in range(num_time_steps - 10 - 1, num_time_steps):
 #        if estimated_states[time_step] is None:
@@ -370,14 +511,14 @@ def main():
 #              ", ".join(["%d" % time_step
 #                         for time_step in difference_time_steps]))
 #    print("\n")
-
-    # display
-    if use_graphics:
-        app = graphics.playback_positions(hidden_states,
-                                          observations,
-                                          estimated_states,
-                                          marginals)
-        app.mainloop()
+#
+#    # display
+#    if use_graphics:
+#        app = graphics.playback_positions(hidden_states,
+#                                          observations,
+#                                          estimated_states,
+#                                          marginals)
+#        app.mainloop()
 
 
 if __name__ == '__main__':
