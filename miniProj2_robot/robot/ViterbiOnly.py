@@ -11,15 +11,6 @@ def printProb(inDict):
     print(sorted(inDict.items(), key=lambda x: x[1],
                  reverse=True)[:5])
 
-def rev_transition_model(curState):
-    # given a hidden state, return the Distribution for the prev hidden state
-    revModel = robot.Distribution()
-    for x in all_possible_hidden_states:
-        tmp = transition_model(x)
-        revModel[x] = tmp[curState]
-    #revModel.renormalize()
-    return revModel
-
 def careful_log(x):
     # computes the log of a non-negative real number
     if x == 0:
@@ -38,19 +29,18 @@ def get_obs(y_in):
             phiOut[x] = y_poss[y_in]
     return phiOut
 
+#def myDictMin(inDict):
+#    minVal = np.inf
+#    minKey = None
+#    for key, val in inDict.items():
+#        if val < minVal:
+#            minVal = val
+#            minKey = key
+#    return minVal, minKey
 
 def myDictMin(inDict):
-    minVal = np.inf
-    minKey = None
-    for key, val in inDict.items():
-        if val < minVal:
-            minVal = val
-            minKey = key
-    return minVal, minKey
-
-#def myDictMin(inDict):
-#    minKey = min(inDict, key=inDict.get)
-#    return inDict[minKey], minKey
+    minKey = min(inDict, key=inDict.get)
+    return inDict[minKey], minKey
 
 def myneglog(pDist):
     pDist = pDist.copy()
@@ -59,10 +49,10 @@ def myneglog(pDist):
         pOut[key] = -1*careful_log(val)
     return pOut
 
-def mostLikely(neglog, msgHat):
+def mostLikely(neglogVals, msgHat):
     finNode = robot.Distribution()
-    for key in neglog.keys():
-        finNode[key] = neglog[key] + msgHat[key]
+    for key in neglogVals.keys():
+        finNode[key] = neglogVals[key] + msgHat[key]
     minVal, minKey = myDictMin(finNode)
     mHat = minVal
     tBack = minKey
@@ -79,43 +69,43 @@ def mostLikely(neglog, msgHat):
 #observations = [(2, 0), (2, 0), (3, 0), (4, 0), (4, 0),
 #                (6, 0), (6, 1), (5, 0), (6, 0), (6, 2)]
 
-#import classCoins as cc
-#all_possible_hidden_states = cc.get_all_hidden_states()
-#all_possible_observed_states = cc.get_all_observed_states()
-#prior_distribution = cc.initial_distribution()
-#transition_model = cc.transition_model
-#observation_model = cc.observation_model
-#observations = ['H', 'H', 'T', 'T', 'T']
-#g = np.log2(3)
+# example with class coins
+import classCoinsExample as cc
+all_possible_hidden_states = cc.get_all_hidden_states()
+all_possible_observed_states = cc.get_all_observed_states()
+prior_distribution = cc.initial_distribution()
+transition_model = cc.transition_model
+observation_model = cc.observation_model
+observations = ['H', 'H', 'T', 'T', 'T']
+g = np.log2(3)
 
-# load wiki examples
-import dnaExample as dna
-all_possible_hidden_states = dna.get_all_hidden_states()
-all_possible_observed_states = dna.get_all_observed_states()
-prior_distribution = dna.initial_distribution()
-transition_model = dna.transition_model
-observation_model = dna.observation_model
-observationsStr = 'GGCACTGAA'.lower()
-observations = [x for x in observationsStr]
+num_time_steps = len(observations)
+
+## load wiki examples
+#import dnaExample as dna
+#all_possible_hidden_states = dna.get_all_hidden_states()
+#all_possible_observed_states = dna.get_all_observed_states()
+#prior_distribution = dna.initial_distribution()
+#transition_model = dna.transition_model
+#observation_model = dna.observation_model
+#observationsStr = 'GGCACTGAA'.lower()
+#observations = [x for x in observationsStr]
 
 # %% computing m12
-#obs1 = get_obs((2, 0))
-obs1 = get_obs(observations[0])
-prior1 = robot.Distribution()
-for x in obs1.keys():
-    prior1[x] = prior_distribution[x]
 phi1 = robot.Distribution()
+obs1 = get_obs(observations[0])
 for x in obs1.keys():
-    tmpProd= obs1[x] * prior1[x]
+    tmpProd= obs1[x] * prior_distribution[x]
     if tmpProd > 0:
         phi1[x] = tmpProd
 
 # compute message 1 to 2
 m12 = robot.Distribution()
 tBack12 = {}
+phi_use = phi1
 for x2_state in all_possible_hidden_states:
     x1_collect = {}
-    for x1_state, x1_value in phi1.items():
+    for x1_state, x1_value in phi_use.items():
         x2_x1_trans = transition_model(x1_state)
         trans_value = x2_x1_trans[x2_state]
         prod = neglog(x1_value) + neglog(trans_value)
@@ -132,14 +122,14 @@ for x2_state in all_possible_hidden_states:
 msgList = [m12]
 tBackList = [tBack12]
 
-for idx, y in enumerate(observations[1:-1], start=1):
-    prevMsg = msgList[idx-1]
+startIdx = 2
+for idx in range(2, num_time_steps):
+    y = observations[idx-1]
     phi2 = get_obs(y)
+    prevMsg = msgList[idx-2]
     m23 = robot.Distribution()
     tBack23 = {}
     for x2_state in all_possible_hidden_states:
-#        if (idx== 3) and x2_state == (4, 0, 'right'):
-#            print('debug')
         x1_collect = {}
         for x1_state, x1_value in phi2.items():
             x2_x1_trans = transition_model(x1_state)
