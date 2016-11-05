@@ -49,10 +49,13 @@ def myneglog(pDist):
         pOut[key] = -1*careful_log(val)
     return pOut
 
-def mostLikely(neglogVals, msgHat):
+def mostLikely(phiLast, msgHat):
     finNode = robot.Distribution()
-    for key in neglogVals.keys():
-        finNode[key] = neglogVals[key] + msgHat[key]
+    for key in phiLast.keys():
+        val2 = msgHat[key]
+        if val2 == 0:
+            val2 = np.inf
+        finNode[key] = neglog(phiLast[key]) + val2
     minVal, minKey = myDictMin(finNode)
     mHat = minVal
     tBack = minKey
@@ -60,24 +63,24 @@ def mostLikely(neglogVals, msgHat):
 
 # %% main program
 
-## project
-#all_possible_hidden_states = robot.get_all_hidden_states()
-#all_possible_observed_states = robot.get_all_observed_states()
-#prior_distribution = robot.initial_distribution()
-#transition_model = robot.transition_model
-#observation_model = robot.observation_model
-#observations = [(2, 0), (2, 0), (3, 0), (4, 0), (4, 0),
-#                (6, 0), (6, 1), (5, 0), (6, 0), (6, 2)]
+# project
+all_possible_hidden_states = robot.get_all_hidden_states()
+all_possible_observed_states = robot.get_all_observed_states()
+prior_distribution = robot.initial_distribution()
+transition_model = robot.transition_model
+observation_model = robot.observation_model
+observations = [(2, 0), (2, 0), (3, 0), (4, 0), (4, 0),
+                (6, 0), (6, 1), (5, 0), (6, 0), (6, 2)]
 
-# example with class coins
-import classCoinsExample as cc
-all_possible_hidden_states = cc.get_all_hidden_states()
-all_possible_observed_states = cc.get_all_observed_states()
-prior_distribution = cc.initial_distribution()
-transition_model = cc.transition_model
-observation_model = cc.observation_model
-observations = ['H', 'H', 'T', 'T', 'T']
-g = np.log2(3)
+## example with class coins
+#import classCoinsExample as cc
+#all_possible_hidden_states = cc.get_all_hidden_states()
+#all_possible_observed_states = cc.get_all_observed_states()
+#prior_distribution = cc.initial_distribution()
+#transition_model = cc.transition_model
+#observation_model = cc.observation_model
+#observations = ['H', 'H', 'T', 'T', 'T']
+#g = np.log2(3)
 
 
 ## load wiki examples
@@ -137,6 +140,8 @@ for idx in range(2, num_time_steps):
             x2_x1_trans = transition_model(x1_state)
             trans_value = x2_x1_trans[x2_state]
             prev = prevMsg[x1_state]
+            if prev == 0:
+                prev = np.inf
             prod = neglog(x1_value) + neglog(trans_value) + prev
             if prod < np.inf:
                 x1_collect[x1_state] = prod
@@ -151,10 +156,9 @@ for idx in range(2, num_time_steps):
 
 
 # %% just fake the tracke back for now
-num_time_steps = len(observations)
-fin_phi_neglog = myneglog(get_obs(observations[-1]))
 finStates = [None] * num_time_steps
-finhat, finState = mostLikely(fin_phi_neglog, msgList[-1])
+phiLast = get_obs(observations[-1])
+finhat, finState = mostLikely(phiLast, msgList[-1])
 finStates[-1] = finState
 #finStates[-1] = (6, 2, "down")
 for idx in range(num_time_steps-1, -1, -1):
