@@ -60,7 +60,7 @@ def mostLikely(neglogVals, msgHat):
 
 # %% main program
 
-# load constants
+## project
 #all_possible_hidden_states = robot.get_all_hidden_states()
 #all_possible_observed_states = robot.get_all_observed_states()
 #prior_distribution = robot.initial_distribution()
@@ -69,7 +69,7 @@ def mostLikely(neglogVals, msgHat):
 #observations = [(2, 0), (2, 0), (3, 0), (4, 0), (4, 0),
 #                (6, 0), (6, 1), (5, 0), (6, 0), (6, 2)]
 
-## example with class coins
+# example with class coins
 import classCoinsExample as cc
 all_possible_hidden_states = cc.get_all_hidden_states()
 all_possible_observed_states = cc.get_all_observed_states()
@@ -112,10 +112,11 @@ for x2_state in all_possible_hidden_states:
         prod = neglog(x1_value) + neglog(trans_value)
         if prod < np.inf:
             x1_collect[x1_state] = prod
-    minVal, minKey = myDictMin(x1_collect)
-    if minVal < np.inf:
-        m12[x2_state] = minVal
-        tBack12[x2_state] = minKey
+    if bool(x1_collect):
+        minVal, minKey = myDictMin(x1_collect)
+        if minVal < np.inf:
+            m12[x2_state] = minVal
+            tBack12[x2_state] = minKey
 
 
 # %% compute message 2 to 3
@@ -140,10 +141,11 @@ for idx in range(2, num_time_steps):
             if prod < np.inf:
                 x1_collect[x1_state] = prod
 
-        minVal, minKey = myDictMin(x1_collect)
-        if minVal < np.inf:
-            m23[x2_state] = minVal
-            tBack23[x2_state] = minKey
+        if bool(x1_collect):
+            minVal, minKey = myDictMin(x1_collect)
+            if minVal < np.inf:
+                m23[x2_state] = minVal
+                tBack23[x2_state] = minKey
     msgList.append(m23)
     tBackList.append(tBack23)
 
