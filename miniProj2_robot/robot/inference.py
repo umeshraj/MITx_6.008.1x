@@ -202,6 +202,21 @@ def mostLikely(phiLast, msgHat):
     tBack = minKey
     return mHat, tBack
 
+def get_all_poss_x2(x1_state_list):
+    all_x2 = []
+    for x1_state in x1_state_list:
+        x2_x1_trans = transition_model(x1_state)
+        for x2 in x2_x1_trans:
+            all_x2.append(x2)
+    all_x2 = set(all_x2)
+    return all_x2
+
+def ur_transition_model():
+    ur_trans_dict = {}
+    for x1 in all_possible_hidden_states:
+        ur_trans_dict[x1] = transition_model(x1)
+    return ur_trans_dict
+
 
 def Viterbi(observations):
     """
@@ -223,6 +238,9 @@ def Viterbi(observations):
     num_time_steps = len(observations)
     #estimated_hidden_states = [None] * num_time_steps # remove this
 
+    # pre-compute for speed
+    ur_trans_dict = ur_transition_model()
+
     # %% computing m12
     phi1 = robot.Distribution()
     obs1 = buildPhi(observations[0])
@@ -235,12 +253,17 @@ def Viterbi(observations):
     m12 = robot.Distribution()
     tBack12 = {}
     phi_use = myneglog(phi1)
-    for x2_state in all_possible_hidden_states:
+    all_x1 = list(phi_use.keys())
+    #for x2_state in all_possible_hidden_states:
+    all_poss_x2 = get_all_poss_x2(all_x1)
+    for x2_state in all_poss_x2:
         x1_collect = {}
         for x1_state, x1_value in phi_use.items():
-            x2_x1_trans = transition_model(x1_state)
+            #x2_x1_trans = transition_model(x1_state)
+            x2_x1_trans = ur_trans_dict[x1_state]
             trans_value = x2_x1_trans[x2_state]
             prod = x1_value + neglog(trans_value)
+            #prod = x1_value + trans_value
             if prod < np.inf:
                 x1_collect[x1_state] = prod
         if bool(x1_collect):
@@ -261,15 +284,20 @@ def Viterbi(observations):
         #prevMsg = msgList[idx-2]
         m23 = robot.Distribution()
         tBack23 = {}
-        for x2_state in all_possible_hidden_states:
+        all_x1 = list(phi2.keys())
+        all_poss_x2 = get_all_poss_x2(all_x1)
+        #for x2_state in all_possible_hidden_states:
+        for x2_state in all_poss_x2:
             x1_collect = {}
             for x1_state, x1_value in phi2.items():
-                x2_x1_trans = transition_model(x1_state)
+                #x2_x1_trans = transition_model(x1_state)
+                x2_x1_trans = ur_trans_dict[x1_state]
                 trans_value = x2_x1_trans[x2_state]
                 prev = prevMsg[x1_state]
                 if prev == 0:
                     prev = np.inf
                 prod = x1_value + neglog(trans_value) + prev
+                #prod = x1_value + trans_value + prev
                 if prod < np.inf:
                     x1_collect[x1_state] = prod
 
@@ -284,6 +312,7 @@ def Viterbi(observations):
 
     # %% just fake the tracke back for now
     finStates = [None] * num_time_steps
+
     phiLast = buildPhi(observations[-1])
     #finhat, finState = mostLikely(phiLast, msgList[-1])
     finhat, finState = mostLikely(phiLast, prevMsg)
@@ -415,8 +444,8 @@ def main():
 #    print("\n")
 
     print('Running Viterbi...')
-    #observations = [(2, 0), (2, 0), (3, 0), (4, 0), (4, 0), (6, 0), (6, 1), (5, 0), (6, 0), (6, 2)]
-    observations = [(1, 6), (4, 6), (4, 7), None, (5, 6), (6, 5), (6, 6), None, (5, 5), (4, 4)]
+    observations = [(2, 0), (2, 0), (3, 0), (4, 0), (4, 0), (6, 0), (6, 1), (5, 0), (6, 0), (6, 2)]
+    #observations = [(1, 6), (4, 6), (4, 7), None, (5, 6), (6, 5), (6, 6), None, (5, 5), (4, 4)]
     estimated_states = Viterbi(observations)
     print(estimated_states)
     print("\n")
