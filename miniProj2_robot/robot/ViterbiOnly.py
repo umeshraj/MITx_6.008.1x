@@ -29,18 +29,18 @@ def get_obs(y_in):
             phiOut[x] = y_poss[y_in]
     return phiOut
 
-#def myDictMin(inDict):
-#    minVal = np.inf
-#    minKey = None
-#    for key, val in inDict.items():
-#        if val < minVal:
-#            minVal = val
-#            minKey = key
-#    return minVal, minKey
-
 def myDictMin(inDict):
-    minKey = min(inDict, key=inDict.get)
-    return inDict[minKey], minKey
+    minVal = np.inf
+    minKey = None
+    for key, val in inDict.items():
+        if val <= minVal:
+            minVal = val
+            minKey = key
+    return minVal, minKey
+
+#def myDictMin(inDict):
+#    minKey = min(inDict, key=inDict.get)
+#    return inDict[minKey], minKey
 
 def myneglog(pDist):
     pDist = pDist.copy()
@@ -128,13 +128,16 @@ msgList = [m12]
 tBackList = [tBack12]
 
 startIdx = 2
-for idx in range(2, num_time_steps):
+for idx in range(startIdx, num_time_steps):
     y = observations[idx-1]
     phi2 = get_obs(y)
     prevMsg = msgList[idx-2]
     m23 = robot.Distribution()
     tBack23 = {}
     for x2_state in all_possible_hidden_states:
+        if idx == 7 and x2_state == (6, 0, 'stay'):
+            print('debug')
+
         x1_collect = {}
         for x1_state, x1_value in phi2.items():
             x2_x1_trans = transition_model(x1_state)
@@ -161,9 +164,13 @@ phiLast = get_obs(observations[-1])
 finhat, finState = mostLikely(phiLast, msgList[-1])
 finStates[-1] = finState
 #finStates[-1] = (6, 2, "down")
-for idx in range(num_time_steps-1, -1, -1):
+curState = finStates[-1]
+for idx in range(num_time_steps-1, 0, -1):
     curState = finStates[idx]
     tBack = tBackList[idx-1]
     prevState = tBack[curState]
     finStates[idx-1] = prevState
     print("{0}: {1}".format(idx, curState))
+# first state update
+firstState = tBack[curState]
+print("{0}: {1}".format(0, firstState))
