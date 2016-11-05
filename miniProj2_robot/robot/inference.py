@@ -220,14 +220,10 @@ def Viterbi(observations):
     # YOUR CODE GOES HERE
     #
 
-#    observations = [(2, 0), (2, 0), (3, 0), (4, 0), (4, 0),
-#                    (6, 0), (6, 1), (5, 0), (6, 0), (6, 2)]
     num_time_steps = len(observations)
     #estimated_hidden_states = [None] * num_time_steps # remove this
 
     # %% computing m12
-    num_time_steps = len(observations)
-
     phi1 = robot.Distribution()
     obs1 = buildPhi(observations[0])
     for x in obs1.keys():
@@ -238,13 +234,13 @@ def Viterbi(observations):
     # compute message 1 to 2
     m12 = robot.Distribution()
     tBack12 = {}
-    phi_use = phi1
+    phi_use = myneglog(phi1)
     for x2_state in all_possible_hidden_states:
         x1_collect = {}
         for x1_state, x1_value in phi_use.items():
             x2_x1_trans = transition_model(x1_state)
             trans_value = x2_x1_trans[x2_state]
-            prod = neglog(x1_value) + neglog(trans_value)
+            prod = x1_value + neglog(trans_value)
             if prod < np.inf:
                 x1_collect[x1_state] = prod
         if bool(x1_collect):
@@ -261,7 +257,7 @@ def Viterbi(observations):
     startIdx = 2
     for idx in range(startIdx, num_time_steps):
         y = observations[idx-1]
-        phi2 = buildPhi(y)
+        phi2 = myneglog(buildPhi(y))
         #prevMsg = msgList[idx-2]
         m23 = robot.Distribution()
         tBack23 = {}
@@ -273,7 +269,7 @@ def Viterbi(observations):
                 prev = prevMsg[x1_state]
                 if prev == 0:
                     prev = np.inf
-                prod = neglog(x1_value) + neglog(trans_value) + prev
+                prod = x1_value + neglog(trans_value) + prev
                 if prod < np.inf:
                     x1_collect[x1_state] = prod
 
