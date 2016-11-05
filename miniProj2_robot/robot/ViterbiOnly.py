@@ -69,7 +69,7 @@ def mostLikely(neglogVals, msgHat):
 #observations = [(2, 0), (2, 0), (3, 0), (4, 0), (4, 0),
 #                (6, 0), (6, 1), (5, 0), (6, 0), (6, 2)]
 
-# example with class coins
+## example with class coins
 import classCoinsExample as cc
 all_possible_hidden_states = cc.get_all_hidden_states()
 all_possible_observed_states = cc.get_all_observed_states()
@@ -79,7 +79,6 @@ observation_model = cc.observation_model
 observations = ['H', 'H', 'T', 'T', 'T']
 g = np.log2(3)
 
-num_time_steps = len(observations)
 
 ## load wiki examples
 #import dnaExample as dna
@@ -92,6 +91,8 @@ num_time_steps = len(observations)
 #observations = [x for x in observationsStr]
 
 # %% computing m12
+num_time_steps = len(observations)
+
 phi1 = robot.Distribution()
 obs1 = get_obs(observations[0])
 for x in obs1.keys():
@@ -154,7 +155,7 @@ finStates = [None] * num_time_steps
 finhat, finState = mostLikely(fin_phi_neglog, msgList[-1])
 finStates[-1] = finState
 #finStates[-1] = (6, 2, "down")
-for idx in range(num_time_steps-1, 0, -1):
+for idx in range(num_time_steps-1, -1, -1):
     curState = finStates[idx]
     tBack = tBackList[idx-1]
     prevState = tBack[curState]
