@@ -72,6 +72,14 @@ def rev_transition_model(curState):
     #revModel.renormalize()
     return revModel
 
+def ur_rev_transition_model():
+    ur_rev_trans_dict = {}
+    for x1 in all_possible_hidden_states:
+        ur_rev_trans_dict[x1] = rev_transition_model(x1)
+    return ur_rev_trans_dict
+
+ur_rev_trans_dict = ur_rev_transition_model()
+
 
 def backward(alphaIn, phi_x, y):
     """compute the next forward message"""
@@ -85,7 +93,8 @@ def backward(alphaIn, phi_x, y):
     # compute alpha out
     alphaOut = robot.Distribution()
     for x, alphaPhi in alphaPhi_X.items():
-        x2Poss = rev_transition_model(x)
+        x2Poss = ur_rev_trans_dict[x]
+        #x2Poss = rev_transition_model(x)
         # multiply and add x2Poss to o/p
         for x2Key, x2pVal in x2Poss.items():
             alphaOut[x2Key] += x2pVal*alphaPhi
@@ -177,14 +186,27 @@ def myDictMin(inDict):
     minVal = np.inf
     minKey = None
     for key, val in inDict.items():
-        if val < minVal:
+        if val <= minVal:
             minVal = val
             minKey = key
     return minVal, minKey
 
+def myDictMinSec(inDict):
+    tmpDict = inDict.copy()
+    minVal, minKey = myDictMin(tmpDict)
+    tmpDict.pop(minKey)
+    minVal, minKey = myDictMin(tmpDict)
+    return minVal, minKey
+
+#def myneglog(pDist):
+#    pDist = pDist.copy()
+#    pOut = robot.Distribution()
+#    for key, val in pDist.items():
+#        pOut[key] = -1*careful_log(val)
+#    return pOut
+
 def myneglog(pDist):
-    pDist = pDist.copy()
-    pOut = robot.Distribution()
+    pOut = {}
     for key, val in pDist.items():
         pOut[key] = -1*careful_log(val)
     return pOut
@@ -196,8 +218,24 @@ def mostLikely(phiLast, msgHat):
         val2 = msgHat[key]
         if val2 == 0:
             val2 = np.inf
-        finNode[key] = neglog(phiLast[key]) + val2
+        tmpSum = neglog(phiLast[key]) + val2
+        if tmpSum < np.inf:
+            finNode[key] = tmpSum
     minVal, minKey = myDictMin(finNode)
+    mHat = minVal
+    tBack = minKey
+    return mHat, tBack
+
+def mostLikelySec(phiLast, msgHat):
+    finNode = robot.Distribution()
+    for key in phiLast.keys():
+        val2 = msgHat[key]
+        if val2 == 0:
+            val2 = np.inf
+        tmpSum = neglog(phiLast[key]) + val2
+        if tmpSum < np.inf:
+            finNode[key] = tmpSum
+    minVal, minKey = myDictMinSec(finNode)
     mHat = minVal
     tBack = minKey
     return mHat, tBack
@@ -214,6 +252,7 @@ def get_all_poss_x2(x1_state_list):
 def ur_transition_model():
     ur_trans_dict = {}
     for x1 in all_possible_hidden_states:
+        #ur_trans_dict[x1] = myneglog(transition_model(x1))
         ur_trans_dict[x1] = transition_model(x1)
     return ur_trans_dict
 
@@ -246,8 +285,8 @@ def ViterbiWkHorse(observations):
             #x2_x1_trans = transition_model(x1_state)
             x2_x1_trans = ur_trans_dict[x1_state]
             trans_value = x2_x1_trans[x2_state]
-            prod = x1_value + neglog(trans_value)
             #prod = x1_value + trans_value
+            prod = x1_value + neglog(trans_value)
             if prod < np.inf:
                 x1_collect[x1_state] = prod
         if bool(x1_collect):
@@ -280,8 +319,8 @@ def ViterbiWkHorse(observations):
                 prev = prevMsg[x1_state]
                 if prev == 0:
                     prev = np.inf
-                prod = x1_value + neglog(trans_value) + prev
                 #prod = x1_value + trans_value + prev
+                prod = x1_value + neglog(trans_value) + prev
                 if prod < np.inf:
                     x1_collect[x1_state] = prod
 
@@ -358,6 +397,28 @@ def second_best(observations):
     num_time_steps = len(observations)
     estimated_hidden_states = [None] * num_time_steps # remove this
 
+#    tBackList, msgList = ViterbiWkHorse(observations)
+#    prevMsg = msgList[-1]
+#    # %% just fake the tracke back for now
+#    finStates = [None] * num_time_steps
+#
+#    phiLast = buildPhi(observations[-1])
+#    #finhat, finState = mostLikely(phiLast, msgList[-1])
+#    finhat, finState = mostLikelySec(phiLast, prevMsg)
+#    finStates[-1] = finState
+#    finStates[-1] = (11, 2, "down")
+#    curState = finStates[-1]
+#    for idx in range(num_time_steps-1, 0, -1):
+#        curState = finStates[idx]
+#        tBack = tBackList[idx-1]
+#        prevState = tBack[curState]
+#        finStates[idx-1] = prevState
+#        # print("{0}: {1}".format(idx, curState))
+#    # first state update
+#    firstState= tBack[curState]
+#    finStates[0] = firstState
+
+    estimated_hidden_states = finStates
     return estimated_hidden_states
 
 
@@ -447,9 +508,25 @@ def main():
 #        print('*No marginal computed*')
 #    print("\n")
 
+    print('Forward backward one')
+    marg1 = forward_backward([(4, 3), (4, 2), (3, 2), (4, 0), (2, 0),
+                      (2, 0), (3, 2), (4, 2), (2, 3), (3, 5)])
+    print(marg1)
+    print('Forward backward two')
+    marg2 = forward_backward([(5, 0), (3, 0), (3, 0), (2, 0), (0, 0),
+                              (0, 1), (0, 1), (1, 2), (0, 3), (0, 4)])
+
+    print('Forward backward three')
+    forward_backward([(6, 0), (6, 2), (7, 2), (7, 3), (7, 4), (7, 5),
+                      (6, 5), (5, 6), None, (7, 7)])
+
+    print('Forward backward four')
+    forward_backward([(6, 5), (7, 4), (8, 4), (10, 4), (10, 5), None,
+                      (11, 5), (11, 5), (9, 4), None])
+
     print('Running Viterbi...')
-    #observations = [(2, 0), (2, 0), (3, 0), (4, 0), (4, 0), (6, 0), (6, 1), (5, 0), (6, 0), (6, 2)]
-    observations = [(1, 6), (4, 6), (4, 7), None, (5, 6), (6, 5), (6, 6), None, (5, 5), (4, 4)]
+    observations = [(2, 0), (2, 0), (3, 0), (4, 0), (4, 0), (6, 0), (6, 1), (5, 0), (6, 0), (6, 2)]
+    #observations = [(1, 6), (4, 6), (4, 7), None, (5, 6), (6, 5), (6, 6), None, (5, 5), (4, 4)]
     estimated_states = Viterbi(observations)
     print(estimated_states)
     print("\n")
@@ -463,7 +540,10 @@ def main():
 #    print("\n")
 #
 #    print('Finding second-best MAP estimate...')
+#    observations = [(8, 2), (8, 1), (10, 0), (10, 0), (10, 1), (11, 0),
+#                    (11, 0), (11, 1), (11, 2), (11, 2)]
 #    estimated_states2 = second_best(observations)
+#    print(estimated_states2)
 #    print("\n")
 #
 #    print("Last 10 hidden states in the second-best MAP estimate:")
