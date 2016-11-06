@@ -177,7 +177,7 @@ def myDictMin(inDict):
     minVal = np.inf
     minKey = None
     for key, val in inDict.items():
-        if val <= minVal:
+        if val < minVal:
             minVal = val
             minKey = key
     return minVal, minKey
@@ -218,23 +218,7 @@ def ur_transition_model():
     return ur_trans_dict
 
 
-def Viterbi(observations):
-    """
-    Input
-    -----
-    observations: a list of observations, one per hidden state
-        (a missing observation is encoded as None)
-
-    Output
-    ------
-    A list of esimated hidden states, each encoded as a tuple
-    (<x>, <y>, <action>)
-    """
-
-    # -------------------------------------------------------------------------
-    # YOUR CODE GOES HERE
-    #
-
+def ViterbiWkHorse(observations):
     num_time_steps = len(observations)
     #estimated_hidden_states = [None] * num_time_steps # remove this
 
@@ -274,7 +258,7 @@ def Viterbi(observations):
 
     # %% compute message 2 to 3
 
-    #msgList = [m12]
+    msgList = [m12]
     prevMsg = m12
     tBackList = [tBack12]
     startIdx = 2
@@ -306,10 +290,30 @@ def Viterbi(observations):
                 if minVal < np.inf:
                     m23[x2_state] = minVal
                     tBack23[x2_state] = minKey
-        #msgList.append(m23)
+        msgList.append(m23)
         prevMsg = m23
         tBackList.append(tBack23)
+    return tBackList, msgList
 
+
+def Viterbi(observations):
+    """
+    Input
+    -----
+    observations: a list of observations, one per hidden state
+        (a missing observation is encoded as None)
+
+    Output
+    ------
+    A list of esimated hidden states, each encoded as a tuple
+    (<x>, <y>, <action>)
+    """
+    num_time_steps = len(observations)
+    # -------------------------------------------------------------------------
+    # YOUR CODE GOES HERE
+    #
+    tBackList, msgList = ViterbiWkHorse(observations)
+    prevMsg = msgList[-1]
     # %% just fake the tracke back for now
     finStates = [None] * num_time_steps
 
@@ -444,8 +448,8 @@ def main():
 #    print("\n")
 
     print('Running Viterbi...')
-    observations = [(2, 0), (2, 0), (3, 0), (4, 0), (4, 0), (6, 0), (6, 1), (5, 0), (6, 0), (6, 2)]
-    #observations = [(1, 6), (4, 6), (4, 7), None, (5, 6), (6, 5), (6, 6), None, (5, 5), (4, 4)]
+    #observations = [(2, 0), (2, 0), (3, 0), (4, 0), (4, 0), (6, 0), (6, 1), (5, 0), (6, 0), (6, 2)]
+    observations = [(1, 6), (4, 6), (4, 7), None, (5, 6), (6, 5), (6, 6), None, (5, 5), (4, 4)]
     estimated_states = Viterbi(observations)
     print(estimated_states)
     print("\n")
