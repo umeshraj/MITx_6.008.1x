@@ -35,7 +35,8 @@ def careful_log(x):
         return np.log(x)
 
 def buildPhi(y):
-    phi_X = robot.Distribution()
+    #phi_X = robot.Distribution()
+    phi_X = {}
     for x in all_possible_hidden_states:
         if y is None:
             phi_X[x] = 1
@@ -77,9 +78,6 @@ def ur_rev_transition_model():
     for x1 in all_possible_hidden_states:
         ur_rev_trans_dict[x1] = rev_transition_model(x1)
     return ur_rev_trans_dict
-
-ur_rev_trans_dict = ur_rev_transition_model()
-
 
 def backward(alphaIn, phi_x, y):
     """compute the next forward message"""
@@ -252,17 +250,14 @@ def get_all_poss_x2(x1_state_list):
 def ur_transition_model():
     ur_trans_dict = {}
     for x1 in all_possible_hidden_states:
-        #ur_trans_dict[x1] = myneglog(transition_model(x1))
-        ur_trans_dict[x1] = transition_model(x1)
+        ur_trans_dict[x1] = myneglog(transition_model(x1))
+        #ur_trans_dict[x1] = transition_model(x1)
     return ur_trans_dict
 
 
 def ViterbiWkHorse(observations):
     num_time_steps = len(observations)
     #estimated_hidden_states = [None] * num_time_steps # remove this
-
-    # pre-compute for speed
-    ur_trans_dict = ur_transition_model()
 
     # %% computing m12
     phi1 = robot.Distribution()
@@ -284,9 +279,12 @@ def ViterbiWkHorse(observations):
         for x1_state, x1_value in phi_use.items():
             #x2_x1_trans = transition_model(x1_state)
             x2_x1_trans = ur_trans_dict[x1_state]
-            trans_value = x2_x1_trans[x2_state]
-            #prod = x1_value + trans_value
-            prod = x1_value + neglog(trans_value)
+            try:
+                trans_value = x2_x1_trans[x2_state]
+            except:
+                trans_value = np.inf
+            prod = x1_value + trans_value
+            #prod = x1_value + neglog(trans_value)
             if prod < np.inf:
                 x1_collect[x1_state] = prod
         if bool(x1_collect):
@@ -315,12 +313,16 @@ def ViterbiWkHorse(observations):
             for x1_state, x1_value in phi2.items():
                 #x2_x1_trans = transition_model(x1_state)
                 x2_x1_trans = ur_trans_dict[x1_state]
-                trans_value = x2_x1_trans[x2_state]
+                #trans_value = x2_x1_trans[x2_state]
+                try:
+                    trans_value = x2_x1_trans[x2_state]
+                except:
+                    trans_value = np.inf
                 prev = prevMsg[x1_state]
                 if prev == 0:
                     prev = np.inf
-                #prod = x1_value + trans_value + prev
-                prod = x1_value + neglog(trans_value) + prev
+                prod = x1_value + trans_value + prev
+                #prod = x1_value + neglog(trans_value) + prev
                 if prod < np.inf:
                     x1_collect[x1_state] = prod
 
@@ -397,26 +399,26 @@ def second_best(observations):
     num_time_steps = len(observations)
     estimated_hidden_states = [None] * num_time_steps # remove this
 
-#    tBackList, msgList = ViterbiWkHorse(observations)
-#    prevMsg = msgList[-1]
-#    # %% just fake the tracke back for now
-#    finStates = [None] * num_time_steps
-#
-#    phiLast = buildPhi(observations[-1])
-#    #finhat, finState = mostLikely(phiLast, msgList[-1])
-#    finhat, finState = mostLikelySec(phiLast, prevMsg)
-#    finStates[-1] = finState
-#    finStates[-1] = (11, 2, "down")
-#    curState = finStates[-1]
-#    for idx in range(num_time_steps-1, 0, -1):
-#        curState = finStates[idx]
-#        tBack = tBackList[idx-1]
-#        prevState = tBack[curState]
-#        finStates[idx-1] = prevState
-#        # print("{0}: {1}".format(idx, curState))
-#    # first state update
-#    firstState= tBack[curState]
-#    finStates[0] = firstState
+    tBackList, msgList = ViterbiWkHorse(observations)
+    prevMsg = msgList[-1]
+    # %% just fake the tracke back for now
+    finStates = [None] * num_time_steps
+
+    phiLast = buildPhi(observations[-1])
+    #finhat, finState = mostLikely(phiLast, msgList[-1])
+    finhat, finState = mostLikelySec(phiLast, prevMsg)
+    finStates[-1] = finState
+    #finStates[-1] = (11, 2, "down")
+    curState = finStates[-1]
+    for idx in range(num_time_steps-1, 0, -1):
+        curState = finStates[idx]
+        tBack = tBackList[idx-1]
+        prevState = tBack[curState]
+        finStates[idx-1] = prevState
+        # print("{0}: {1}".format(idx, curState))
+    # first state update
+    firstState= tBack[curState]
+    finStates[0] = firstState
 
     estimated_hidden_states = finStates
     return estimated_hidden_states
@@ -468,6 +470,11 @@ def generate_data(num_time_steps, make_some_observations_missing=False,
 # Main
 #
 
+# pre-compute for speed
+ur_trans_dict = ur_transition_model()
+ur_rev_trans_dict = ur_rev_transition_model()
+
+
 def main():
     # flags
     make_some_observations_missing = False
@@ -508,21 +515,21 @@ def main():
 #        print('*No marginal computed*')
 #    print("\n")
 
-    print('Forward backward one')
-    marg1 = forward_backward([(4, 3), (4, 2), (3, 2), (4, 0), (2, 0),
-                      (2, 0), (3, 2), (4, 2), (2, 3), (3, 5)])
-    print(marg1)
-    print('Forward backward two')
-    marg2 = forward_backward([(5, 0), (3, 0), (3, 0), (2, 0), (0, 0),
-                              (0, 1), (0, 1), (1, 2), (0, 3), (0, 4)])
-
-    print('Forward backward three')
-    forward_backward([(6, 0), (6, 2), (7, 2), (7, 3), (7, 4), (7, 5),
-                      (6, 5), (5, 6), None, (7, 7)])
-
-    print('Forward backward four')
-    forward_backward([(6, 5), (7, 4), (8, 4), (10, 4), (10, 5), None,
-                      (11, 5), (11, 5), (9, 4), None])
+#    print('Forward backward one')
+#    marg1 = forward_backward([(4, 3), (4, 2), (3, 2), (4, 0), (2, 0),
+#                      (2, 0), (3, 2), (4, 2), (2, 3), (3, 5)])
+#    print(marg1)
+#    print('Forward backward two')
+#    marg2 = forward_backward([(5, 0), (3, 0), (3, 0), (2, 0), (0, 0),
+#                              (0, 1), (0, 1), (1, 2), (0, 3), (0, 4)])
+#
+#    print('Forward backward three')
+#    forward_backward([(6, 0), (6, 2), (7, 2), (7, 3), (7, 4), (7, 5),
+#                      (6, 5), (5, 6), None, (7, 7)])
+#
+#    print('Forward backward four')
+#    forward_backward([(6, 5), (7, 4), (8, 4), (10, 4), (10, 5), None,
+#                      (11, 5), (11, 5), (9, 4), None])
 
     print('Running Viterbi...')
     observations = [(2, 0), (2, 0), (3, 0), (4, 0), (4, 0), (6, 0), (6, 1), (5, 0), (6, 0), (6, 2)]
@@ -539,12 +546,12 @@ def main():
 #            print(estimated_states[time_step])
 #    print("\n")
 #
-#    print('Finding second-best MAP estimate...')
-#    observations = [(8, 2), (8, 1), (10, 0), (10, 0), (10, 1), (11, 0),
-#                    (11, 0), (11, 1), (11, 2), (11, 2)]
-#    estimated_states2 = second_best(observations)
-#    print(estimated_states2)
-#    print("\n")
+    print('Finding second-best MAP estimate...')
+    observations = [(8, 2), (8, 1), (10, 0), (10, 0), (10, 1), (11, 0),
+                    (11, 0), (11, 1), (11, 2), (11, 2)]
+    estimated_states2 = second_best(observations)
+    print(estimated_states2)
+    print("\n")
 #
 #    print("Last 10 hidden states in the second-best MAP estimate:")
 #    for time_step in range(num_time_steps - 10 - 1, num_time_steps):
