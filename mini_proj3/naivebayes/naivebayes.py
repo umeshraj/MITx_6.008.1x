@@ -1,6 +1,7 @@
 import sys
 import os.path
 import numpy as np
+from collections import Counter
 
 import util
 
@@ -12,7 +13,7 @@ def get_counts(file_list):
 
     Inputs
     ------
-    file_list : a list of filenames, suitable for use with open() or 
+    file_list : a list of filenames, suitable for use with open() or
                 util.get_words_in_file()
 
     Output
@@ -21,16 +22,22 @@ def get_counts(file_list):
     key occurred in.
     """
     ### TODO: Comment out the following line and write your code here
-    raise NotImplementedError
+    word_count = Counter()
+    for file in file_list:
+        word_list = util.get_words_in_file(file)
+        for word in word_list:
+            word_count[word] += 1
+    return word_count
+
 
 def get_log_probabilities(file_list):
     """
-    Computes log-frequencies for each word that occurs in the files in 
+    Computes log-frequencies for each word that occurs in the files in
     file_list.
 
     Input
     -----
-    file_list : a list of filenames, suitable for use with open() or 
+    file_list : a list of filenames, suitable for use with open() or
                 util.get_words_in_file()
 
     Output
@@ -44,14 +51,19 @@ def get_log_probabilities(file_list):
     get_counts() helper above.
     """
     ### TODO: Comment out the following line and write your code here
-    raise NotImplementedError
+    word_count = get_counts(file_list)
+    num_files = len(file_list)
+    log_prob = {}
+    for word, num_words in word_count.items():
+        log_prob[word] = np.log((num_words+1)/num_files)
+    return log_prob
 
 
 def learn_distributions(file_lists_by_category):
     """
     Input
     -----
-    A two-element list. The first element is a list of spam files, 
+    A two-element list. The first element is a list of spam files,
     and the second element is a list of ham (non-spam) files.
 
     Output
@@ -104,10 +116,13 @@ def classify_emails(spam_files, ham_files, test_files):
 
 def main():
     ### Read arguments
-    if len(sys.argv) != 4:
-        print USAGE % sys.argv[0]
-    testing_folder = sys.argv[1]
-    (spam_folder, ham_folder) = sys.argv[2:4]
+#    if len(sys.argv) != 4:
+#        print(USAGE % sys.argv[0])
+#    testing_folder = sys.argv[1]
+#    (spam_folder, ham_folder) = sys.argv[2:4]
+    testing_folder = 'data/testing/'
+    spam_folder = 'data/spam/'
+    ham_folder = 'data/ham/'
 
     ### Learn the distributions
     file_lists = []
@@ -149,4 +164,6 @@ def main():
                       totals[1]))
 
 if __name__ == '__main__':
-    main()
+    #main()
+    ur_counts = get_counts(['word_test.txt'])
+    ur_log_prob = get_log_probabilities(['word_test.txt'])
