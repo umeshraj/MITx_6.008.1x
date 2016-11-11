@@ -55,7 +55,7 @@ def get_log_probabilities(file_list):
     num_files = len(file_list)
     log_prob = {}
     for word, num_words in word_count.items():
-        log_prob[word] = np.log((num_words+1)/num_files)
+        log_prob[word] = np.log((num_words+1)/num_files+2)
     return log_prob
 
 
@@ -80,7 +80,22 @@ def learn_distributions(file_lists_by_category):
                             [est. for log P(c=spam), est. for log P(c=ham)]
     """
     ### TODO: Comment out the following line and write your code here
-    raise NotImplementedError
+    #raise NotImplementedError
+    log_prob_by_category = []
+    for file_list_catergory in file_lists_by_category:
+        tmp = get_log_probabilities(file_list_catergory)
+        log_prob_by_category.append(tmp)
+
+    # compute the log_prior
+    num_spam = len(file_lists_by_category[0])
+    num_ham = len(file_lists_by_category[1])
+    num_files = num_spam + num_ham
+    log_spam = np.log(num_spam/num_files)
+    log_ham = np.log(num_ham/num_files)
+    log_prior_by_category = [log_spam,log_ham]
+
+    return log_prob_by_category, log_prior_by_category
+
 
 def classify_email(email_filename,
                    log_probabilities_by_category,
@@ -164,6 +179,9 @@ def main():
                       totals[1]))
 
 if __name__ == '__main__':
-    #main()
-    ur_counts = get_counts(['word_test.txt'])
-    ur_log_prob = get_log_probabilities(['word_test.txt'])
+    main()
+#    ur_counts = get_counts(['word_test.txt'])
+#    ur_log_prob = get_log_probabilities(['word_test.txt'])
+#    file_lists = [['spam_test.txt'], ['ham_test.txt']]
+#    (log_probabilities_by_category, log_priors_by_category) = \
+#            learn_distributions(file_lists)
