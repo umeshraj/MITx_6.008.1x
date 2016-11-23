@@ -249,6 +249,11 @@ def compute_empirical_conditional_distribution(var1_values, var2_values):
     # -------------------------------------------------------------------------
     # YOUR CODE HERE
     #
+    for x2 in set(var2_values):
+        idx = var2_values == x2
+        x1_values = var1_values[idx]
+        dist = compute_empirical_distribution(x1_values)
+        conditional_distributions[x2] = dist
 
     #
     # END OF YOUR CODE
