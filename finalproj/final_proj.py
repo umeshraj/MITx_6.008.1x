@@ -193,6 +193,30 @@ def chow_liu(observations):
     # -------------------------------------------------------------------------
     # YOUR CODE HERE
     #
+    mutual_info_mtx = np.zeros((num_vars, num_vars))
+    for row_idx in np.arange(start=0, stop=num_vars):
+        for col_idx in np.arange(start=row_idx+1, stop=num_vars):
+            var1_values = observations[:, row_idx]
+            var2_values = observations[:, col_idx]
+            mutual_info = compute_empirical_mutual_info_nats(var1_values,
+                                                             var2_values)
+            mutual_info_mtx[row_idx, col_idx] = mutual_info
+
+
+    num_edges = len(best_tree)
+    mim = mutual_info_mtx
+    while num_edges < num_vars-1:
+        # find max
+        max_idx = np.where(mim == mim.max())
+        i = max_idx[0][0]
+        j = max_idx[1][0]
+        #try adding edge
+        if union_find.find(i) != union_find.find(j):
+            best_tree.add((i, j))
+            union_find.union(i, j)
+        num_edges = len(best_tree)
+        #remove max from mutual info
+        mim[i, j] = 0
 
     #
     # END OF YOUR CODE
@@ -518,11 +542,11 @@ def main():
 
 
 if __name__ == '__main__':
-    #main()
+    main()
     # testing
-    from sklearn.metrics import mutual_info_score
-    var1_values = np.random.randint(low=-1, high=2, size=10)
-    var2_values = np.random.randint(low=-1, high=2, size=10)
-    ur = compute_empirical_mutual_info_nats(var1_values, var2_values)
-    sk = mutual_info_score(var1_values, var2_values)
-    print("Test Mutual info: UR: {0:4.4f}, SK: {1:4.4f}".format(ur, sk))
+#    from sklearn.metrics import mutual_info_score
+#    var1_values = np.random.randint(low=-1, high=2, size=10)
+#    var2_values = np.random.randint(low=-1, high=2, size=10)
+#    ur = compute_empirical_mutual_info_nats(var1_values, var2_values)
+#    sk = mutual_info_score(var1_values, var2_values)
+#    print("Test Mutual info: UR: {0:4.4f}, SK: {1:4.4f}".format(ur, sk))
