@@ -208,8 +208,8 @@ def chow_liu(observations):
     while num_edges < num_vars-1:
         # find max
         max_idx = np.where(mim == mim.max())
-        i = max_idx[0][0]
-        j = max_idx[1][0]
+        i = int(max_idx[0][0])
+        j = int(max_idx[1][0])
         #try adding edge
         if union_find.find(i) != union_find.find(j):
             best_tree.add((i, j))
@@ -337,11 +337,35 @@ def learn_tree_parameters(observations, tree, root_node=0):
                     transposed_table[x1][x2] = \
                         dicts_within_dict_table[x2][x1]
         return transposed_table
-        edge_potentials[(neighbor, node)] = edge_potential_transposed
+        #edge_potentials[(neighbor, node)] = edge_potential_transposed
 
     # -------------------------------------------------------------------------
     # YOUR CODE HERE
     #
+    for tmp_node in nodes:
+        obs_values = observations[:, root_node]
+        if tmp_node == root_node:
+            dist = compute_empirical_distribution(obs_values)
+        else:
+            dist = {x: 1 for x in set(obs_values)}
+        node_potentials[tmp_node] = dist
+
+    # compute the edge potentials
+    fringe = [root_node]  # this is a list of nodes queued up to be visited next
+    visited = {node: False for node in nodes}  # track which nodes are visited
+    while len(fringe) > 0:
+        node = fringe.pop(0)  # removes the 0th element of `fringe` and returns it
+        visited[node] = True  # mark `node` as visited
+        for neighbor in edges[node]:
+            if not visited[neighbor]:
+                # do some processing that involves the edge `(neighbor, node)` here
+                par_values = observations[:, node]
+                child_values = observations[:, neighbor]
+                tmp_dist = compute_empirical_conditional_distribution(child_values,
+                                                                      par_values)
+                edge_potentials[(node, neighbor)] = tmp_dist
+                # finally after you do your processing, add `neighbor` to `fringe`
+                fringe.append(neighbor)
 
     #
     # END OF YOUR CODE
