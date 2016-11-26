@@ -1,6 +1,6 @@
 import copy
 import numpy as np
-
+import collections
 
 # DO NOT MODIFY THIS FUNCTION
 def convert_tree_as_set_to_adjacencies(tree):
@@ -364,8 +364,15 @@ def learn_tree_parameters(observations, tree, root_node=0):
                 tmp_dist = compute_empirical_conditional_distribution(child_values,
                                                                       par_values)
                 edge_potentials[(node, neighbor)] = tmp_dist
+
+                # include transpose
+                #edge_potential_transposed = transpose_2d_table(edge_potentials)
+                #edge_potentials[(neighbor, node)] = edge_potential_transposed
+
                 # finally after you do your processing, add `neighbor` to `fringe`
                 fringe.append(neighbor)
+
+
 
     #
     # END OF YOUR CODE
@@ -397,7 +404,7 @@ def sum_product(nodes, edges, node_potentials, edge_potentials):
         everything here since we cannot read off what the alphabet is for the
         random variable
     - edge_potentials: Python dictionary where `edge_potentials[(i, j)]` is
-        a dictionaries-within-a-dictionary representation for a 2D potential
+        a dictionaries-within-a-dictionary representation fyesor a 2D potential
         table so that `edge_potentials[(i, j)][x_i][x_j]` corresponds to
         what, in the course notes, we call $\psi_{i,j}(x_i, x_j)$
 
@@ -418,6 +425,24 @@ def sum_product(nodes, edges, node_potentials, edge_potentials):
     # -------------------------------------------------------------------------
     # YOUR CODE HERE
     #
+    root_node = list(node_potentials.keys())[0]
+    rt2lf_path = get_path(nodes, edges, root_node)
+    lf2rt_path = rt2lf_path[-1::-1]
+    all_messages = {}
+    for path in lf2rt_path:
+        par, child = path
+        all_messages = get_message(child, par,
+                                   nodes, edges, node_potentials, edge_potentials,
+                                   all_messages)
+
+    for path in rt2lf_path:
+        par, child = path
+        all_messages = get_message(par, child,
+                                   nodes, edges, node_potentials, edge_potentials,
+                                   all_messages)
+
+    for node in nodes:
+        marginals[node] = compute_marginal(node, edges, node_potentials, all_messages)
 
     #
     # END OF YOUR CODE
@@ -425,6 +450,100 @@ def sum_product(nodes, edges, node_potentials, edge_potentials):
 
     return marginals
 
+def compute_marginal(node, edges, node_potentials, all_messages):
+    marg = node_potentials[node]
+    #to_nodes = edges[node]
+    for tmp in edges[node]:
+        msg = all_messages[(tmp, node)]
+        for key, val in msg.items():
+            marg[key] *= val
+
+    marg = normalize_marginal(marg)
+
+    return marg
+
+def normalize_marginal(marg):
+    # normalize margina
+    Z = 0
+    for key, val in marg.items():
+        Z += val
+    for key, val in marg.items():
+        marg[key] /= Z
+    return marg
+
+
+def get_message(from_node, to_node,
+                nodes, edges, node_potentials, edge_potentials,
+                all_messages):
+    phi_from = node_potentials[from_node]
+    psi = edge_potentials[(from_node, to_node)]
+    # get prev messages
+    # compute messages
+    msg = {}
+    phi_to = node_potentials[to_node]
+    prev_msg_prod = get_prev_msg_prod(from_node, to_node, edges,
+                                      node_potentials, all_messages)
+
+    for key_to in phi_to.keys():
+        tmp = 0
+        for key_from in phi_from.keys():
+            tmp += phi_from[key_from] * psi[key_from][key_to] * prev_msg_prod[key_from]
+        msg[key_to] = tmp
+    all_messages[(from_node, to_node)] = msg
+    return all_messages
+
+
+def get_prev_msg_prod(from_node, to_node, edges,
+                      node_potentials,
+                      all_messages):
+    prev_edges = get_prev_edges(from_node, to_node, edges)
+    prod_msg = {}
+
+    phi_to = node_potentials[to_node]
+    for key_to in phi_to.keys():
+        prod_msg[key_to] = 1
+
+    if prev_edges:
+        for edge in prev_edges:
+            tmp_dict = all_messages[edge]
+            for key, val in tmp_dict.items():
+                prod_msg[key] = prod_msg.get(key, 1) * val
+    return prod_msg
+
+
+def get_prev_edges(from_node, to_node, edges):
+    prev_nodes = edges.get(from_node, None)
+#    prev_nodes.remove(to_node)
+    prev_msg = []
+    for prev_node in prev_nodes:
+        if prev_node != to_node:
+            prev_msg.append((prev_node, from_node))
+    return prev_msg
+
+def get_path(nodes, edges, root_node):
+#    nodes = {1, 2, 3}
+#    edges = {1: [2], 2: [1, 3], 3: [2]}
+#    nodes = {1, 2, 3, 4, 5}
+#    edges = {1: [2, 3], 2: [1, 4, 5], 3: [1], 4: [2], 5: [2]}
+#    nodes = {1, 2, 3, 4, 5, 6, 7}
+#    edges = {1: [2, 3], 2: [1, 4, 5], 3: [1, 6, 7],
+#             4: [2], 5: [2], 6:[3], 7: [3]}
+#    root_node = 1
+    edges_list = []
+
+    fringe = collections.deque([root_node])
+    visited = {node: False for node in nodes}  # track which nodes are visited
+    while len(fringe) > 0:
+        #node = fringe.pop(0)  # removes the 0th element of `fringe` and returns it
+        node = fringe.popleft()
+        visited[node] = True  # mark `node` as visited
+        for neighbor in edges[node]:
+            if not visited[neighbor]:
+                # do some processing that involves the edge `(neighbor, node)` here
+                edges_list.append((node, neighbor))
+                # finally after you do your processing, add `neighbor` to `fringe`
+                fringe.append(neighbor)
+    return edges_list
 
 def test_sum_product1():
     """
@@ -556,14 +675,14 @@ def main():
     print(node_potentials)
     print(edge_potentials)
 
-    marginals = compute_marginals_given_observations(
-        {0, 1, 2, 3},
-        convert_tree_as_set_to_adjacencies(best_tree),
-        node_potentials,
-        edge_potentials,
-        observations={1: +1, 2: +1})
-    print(marginals)
-    print()
+#    marginals = compute_marginals_given_observations(
+#        {0, 1, 2, 3},
+#        convert_tree_as_set_to_adjacencies(best_tree),
+#        node_potentials,
+#        edge_potentials,
+#        observations={1: +1, 2: +1})
+#    print(marginals)
+#    print()
 
     print('[Sum-Product tests based on earlier course material]')
     test_sum_product1()
@@ -572,7 +691,9 @@ def main():
 
 if __name__ == '__main__':
     main()
-    # testing
+#    # testing
+#    get_path(None, None, None)
+
 #    from sklearn.metrics import mutual_info_score
 #    var1_values = np.random.randint(low=-1, high=2, size=10)
 #    var2_values = np.random.randint(low=-1, high=2, size=10)
