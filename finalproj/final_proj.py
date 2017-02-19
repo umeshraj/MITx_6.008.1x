@@ -433,13 +433,13 @@ def sum_product(nodes, edges, node_potentials, edge_potentials):
         par, child = path
         all_messages = get_message(child, par,
                                    nodes, edges, node_potentials, edge_potentials,
-                                   all_messages)
+                                   all_messages, root_node)
 
     for path in rt2lf_path:
         par, child = path
         all_messages = get_message(par, child,
                                    nodes, edges, node_potentials, edge_potentials,
-                                   all_messages)
+                                   all_messages, root_node)
 
     for node in nodes:
         marginals[node] = compute_marginal(node, edges, node_potentials, all_messages)
@@ -459,7 +459,8 @@ def compute_marginal(node, edges, node_potentials, all_messages):
             marg[key] *= val
 
     marg = normalize_marginal(marg)
-
+    # remove zero values
+    marg = {k: v for k, v in marg.items() if v}
     return marg
 
 def normalize_marginal(marg):
@@ -469,20 +470,22 @@ def normalize_marginal(marg):
         Z += val
     for key, val in marg.items():
         marg[key] /= Z
+    marg
     return marg
 
 
 def get_message(from_node, to_node,
                 nodes, edges, node_potentials, edge_potentials,
-                all_messages):
+                all_messages, root_node):
     phi_from = node_potentials[from_node]
     psi = edge_potentials[(from_node, to_node)]
     # get prev messages
     # compute messages
     msg = {}
     phi_to = node_potentials[to_node]
+
     prev_msg_prod = get_prev_msg_prod(from_node, to_node, edges,
-                                      node_potentials, all_messages)
+                                      node_potentials, all_messages, root_node)
 
     for key_to in phi_to.keys():
         tmp = 0
@@ -495,7 +498,7 @@ def get_message(from_node, to_node,
 
 def get_prev_msg_prod(from_node, to_node, edges,
                       node_potentials,
-                      all_messages):
+                      all_messages, root_node):
     prev_edges = get_prev_edges(from_node, to_node, edges)
     prod_msg = {}
 
@@ -504,6 +507,7 @@ def get_prev_msg_prod(from_node, to_node, edges,
         prod_msg[key_to] = 1
 
     if prev_edges:
+#    if prev_edges and (root_node != from_node):
         for edge in prev_edges:
             tmp_dict = all_messages[edge]
             for key, val in tmp_dict.items():
@@ -569,6 +573,7 @@ def test_sum_product1():
            2: {0: 0.8333333333333334, 1: 0.16666666666666666},
            3: {0: 0.16666666666666666, 1: 0.8333333333333334}})
 
+    print('testing with observations')
     node_potentials = {1: {0: 1, 1: 1}, 2: {0: 1, 1: 1}, 3: {0: 1, 1: 1}}
     print(compute_marginals_given_observations(nodes, edges,
                                                node_potentials,
@@ -616,6 +621,46 @@ def test_sum_product2():
            4: {'blue': 0.9142857142857143, 'green': 0.0857142857142857},
            5: {'blue': 0.9142857142857143, 'green': 0.0857142857142857}})
 
+    # testing the observations model
+
+
+def test_sum_product3():
+    """
+    Below is the example from online test
+    """
+    print("WORKING ON TEST3!!\n\n")
+    nodes = {1, 2, 3, 4, 5}
+    edges = {1: [2, 3], 2: [1, 4, 5], 3: [1], 4: [2], 5: [2]}
+    node_potentials = {1: {'green': 0.9, 'blue': 0.3},
+                       2: {'green': 0.2, 'blue': 0.1},
+                       3: {'green': 0.6, 'blue': 0.4},
+                       4: {'green': 0.5, 'blue': 0.1},
+                       5: {'green': 0.3, 'blue': 0.5}}
+
+    edge_potentials = {(1, 2): {'green': {'green': 0.1, 'blue': 1},
+                          'blue': {'green': 1, 'blue': 0.1}},
+                      (1, 3): {'green': {'green': 0, 'blue': 10},
+                          'blue': {'green': 10, 'blue': 0}},
+                      (4, 2): {'green': {'green': 0.1, 'blue': 1},
+                          'blue': {'green': 1, 'blue': 0.1}},
+                      (2, 5): {'green': {'green': 1, 'blue': 3},
+                          'blue': {'green': 3, 'blue': 1}},
+                      (3, 1): {'green': {'green': 0, 'blue': 10},
+                          'blue': {'green': 10, 'blue': 0}},
+                      (5, 2): {'green': {'green': 1, 'blue': 3},
+                          'blue': {'green': 3, 'blue': 1}},
+                      (2, 4): {'green': {'green': 0.1, 'blue': 1},
+                          'blue': {'green': 1, 'blue': 0.1}},
+                    (2, 1): {'green': {'green': 0.1, 'blue': 1},
+                        'blue': {'green': 1, 'blue': 0.1}}}
+    observations = {1: 'green', 4: 'blue'}
+
+    marginals = compute_marginals_given_observations(nodes, edges,
+                                                     node_potentials,
+                                                     edge_potentials,
+                                                     observations)
+    print(marginals)
+
 
 def compute_marginals_given_observations(nodes, edges, node_potentials,
                                          edge_potentials, observations):
@@ -643,7 +688,12 @@ def compute_marginals_given_observations(nodes, edges, node_potentials,
     # -------------------------------------------------------------------------
     # YOUR CODE HERE
     #
-
+    new_node_potentials = node_potentials
+    for obs_node, obs_value in observations.items():
+        old_node = node_potentials[obs_node]
+        new_node = {key: 0 for key in old_node.keys()}
+        new_node[obs_value] = 1
+        new_node_potentials[obs_node] = new_node
     #
     # END OF YOUR CODE
     # -------------------------------------------------------------------------
@@ -652,6 +702,13 @@ def compute_marginals_given_observations(nodes, edges, node_potentials,
                        edges,
                        new_node_potentials,
                        edge_potentials)
+
+
+def test_online():
+    tmp = sum_product({1, 2, 3, 4, 5}, {1: [2, 3], 2: [1, 4, 5], 3: [1], 4: [2], 5: [2]}, {1: {'green': 0.9, 'blue': 0.3}, 2: {'green': 0.2, 'blue': 0.1}, 3: {'green': 0.6, 'blue': 0.4}, 4: {'green': 0.5, 'blue': 0.1}, 5: {'green': 0.3, 'blue': 0.5}}, {(1, 2): {'green': {'green': 0.1, 'blue': 1}, 'blue': {'green': 1, 'blue': 0.1}}, (1, 3): {'green': {'green': 0, 'blue': 10}, 'blue': {'green': 10, 'blue': 0}}, (4, 2): {'green': {'green': 0.1, 'blue': 1}, 'blue': {'green': 1, 'blue': 0.1}}, (2, 5): {'green': {'green': 1, 'blue': 3}, 'blue': {'green': 3, 'blue': 1}}, (3, 1): {'green': {'green': 0, 'blue': 10}, 'blue': {'green': 10, 'blue': 0}}, (5, 2): {'green': {'green': 1, 'blue': 3}, 'blue': {'green': 3, 'blue': 1}}, (2, 4): {'green': {'green': 0.1, 'blue': 1}, 'blue': {'green': 1, 'blue': 0.1}}, (2, 1): {'green': {'green': 0.1, 'blue': 1}, 'blue': {'green': 1, 'blue': 0.1}}})
+    print(tmp)
+    tmp = compute_marginals_given_observations({1, 2, 3, 4, 5}, {1: [2, 3], 2: [1, 4, 5], 3: [1], 4: [2], 5: [2]}, {1: {'green': 0.9, 'blue': 0.3}, 2: {'green': 0.2, 'blue': 0.1}, 3: {'green': 0.6, 'blue': 0.4}, 4: {'green': 0.5, 'blue': 0.1}, 5: {'green': 0.3, 'blue': 0.5}}, {(1, 2): {'green': {'green': 0.1, 'blue': 1}, 'blue': {'green': 1, 'blue': 0.1}}, (1, 3): {'green': {'green': 0, 'blue': 10}, 'blue': {'green': 10, 'blue': 0}}, (4, 2): {'green': {'green': 0.1, 'blue': 1}, 'blue': {'green': 1, 'blue': 0.1}}, (2, 5): {'green': {'green': 1, 'blue': 3}, 'blue': {'green': 3, 'blue': 1}}, (3, 1): {'green': {'green': 0, 'blue': 10}, 'blue': {'green': 10, 'blue': 0}}, (5, 2): {'green': {'green': 1, 'blue': 3}, 'blue': {'green': 3, 'blue': 1}}, (2, 4): {'green': {'green': 0.1, 'blue': 1}, 'blue': {'green': 1, 'blue': 0.1}}, (2, 1): {'green': {'green': 0.1, 'blue': 1}, 'blue': {'green': 1, 'blue': 0.1}}}, {1: 'green', 4: 'blue'})
+    print(tmp)
 
 
 def main():
@@ -687,10 +744,14 @@ def main():
     print('[Sum-Product tests based on earlier course material]')
     test_sum_product1()
     test_sum_product2()
+    #test_sum_product3()
 
 
 if __name__ == '__main__':
-    main()
+#    test_sum_product3()
+    test_online()
+
+#    main()
 #    # testing
 #    get_path(None, None, None)
 
